@@ -1,8 +1,109 @@
 import React, { useState, useMemo } from 'react';
 import { Download, Plus, TrendingUp, DollarSign, Percent, BarChart3, Trash2, ExternalLink, Image, Edit2, Eye, Filter, X, AlertCircle, CheckCircle, Award } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { useEffect } from 'react';
 
 export default function TradingJournalV41() {
   const [trades, setTrades] = useState([]);
+  const [loading, setLoading] = useState(true);
+  // Cargar todos los trades desde Supabase
+useEffect(() => {
+  loadAllTrades();
+}, []);
+
+const loadAllTrades = async () => {
+  try {
+    setLoading(true);
+    
+    const { data: tradesData, error } = await supabase
+      .from('trades')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+
+    if (tradesData && tradesData.length > 0) {
+      setTrades(tradesData);
+    }
+  } catch (error) {
+    console.error('Error cargando trades:', error);
+  } finally {
+    setLoading(false);
+  }
+};
+
+// Guardar trade en Supabase
+const saveTrade = async (trade) => {
+  console.log('🔵 saveTrade llamado con:', trade);
+  try {
+    const tradeData = {
+      fecha: trade.fecha || '',
+      ticker: trade.ticker || '',
+      direccion: trade.direccion || '',
+      estrategia: trade.estrategia || '',
+      precio_entrada_1: parseFloat(trade.precioEntrada1) || null,
+      precio_entrada_2: parseFloat(trade.precioEntrada2) || null,
+      precio_entrada_3: parseFloat(trade.precioEntrada3) || null,
+      cantidad_entrada_1: parseFloat(trade.cantidadEntrada1) || null,
+      cantidad_entrada_2: parseFloat(trade.cantidadEntrada2) || null,
+      cantidad_entrada_3: parseFloat(trade.cantidadEntrada3) || null,
+      precio_salida_1: parseFloat(trade.precioSalida1) || null,
+      precio_salida_2: parseFloat(trade.precioSalida2) || null,
+      precio_salida_3: parseFloat(trade.precioSalida3) || null,
+      cantidad_salida_1: parseFloat(trade.cantidadSalida1) || null,
+      cantidad_salida_2: parseFloat(trade.cantidadSalida2) || null,
+      cantidad_salida_3: parseFloat(trade.cantidadSalida3) || null,
+      resultado: parseFloat(trade.resultado) || null,
+      porcentaje_ganancia: parseFloat(trade.porcentajeGanancia) || null,
+      drawdown_max: parseFloat(trade.drawdownMax) || null,
+      comisiones: parseFloat(trade.comisiones) || null,
+      rr_ratio: parseFloat(trade.rrRatio) || null,
+      duracion_minutos: parseInt(trade.duracionMinutos) || null,
+      motivo_entrada: trade.motivoEntrada || '',
+      confluencias: trade.confluencias || {},
+      critirea: trade.critirea || false,
+      red_flags: trade.redFlags || '',
+      tags: trade.tags || [],
+      hora_entrada: trade.horaEntrada || '',
+      volumen: trade.volumen || '',
+      screenshot: trade.screenshot || '',
+      link_tradingview: trade.linkTradingView || '',
+      notas: trade.notas || '',
+      emociones: trade.emociones || '',
+      errores: trade.errores || '',
+      confluencias_cumplidas: parseInt(trade.confluenciasCumplidas) || null,
+      total_confluencias: parseInt(trade.totalConfluencias) || null,
+      timestamp: parseInt(trade.timestamp) || Date.now()
+    };
+
+    if (trade.id && typeof trade.id === 'string' && trade.id.length > 20) {
+      const { error } = await supabase
+        .from('trades')
+        .update(tradeData)
+        .eq('id', trade.id);
+      
+      if (error) throw error;
+      console.log('✅ Trade actualizado en Supabase');
+    } else {
+      const { data, error } = await supabase
+        .from('trades')
+        .insert([tradeData])
+        .select();
+      
+      if (error) throw error;
+      
+      if (data && data[0]) {
+        setTrades(trades.map(t => 
+          t.timestamp === trade.timestamp ? {...trade, id: data[0].id} : t
+        ));
+        console.log('✅ Trade guardado en Supabase con ID:', data[0].id);
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error guardando trade:', error);
+    alert('Error al guardar trade: ' + error.message);
+  }
+};
   const [showForm, setShowForm] = useState(false);
   const [editingIndex, setEditingIndex] = useState(null);
   const [viewingTrade, setViewingTrade] = useState(null);
@@ -176,7 +277,7 @@ export default function TradingJournalV41() {
 
   const stats = calcularEstadisticas();
 
-  const agregarTrade = () => {
+const agregarTrade = async () => {
     const precioPromedioEntrada = calcularPrecioPromedio();
     const cantidadTotalEntrada = parseFloat(currentTrade.cantidadEntrada1 || 0) + 
                           parseFloat(currentTrade.cantidadEntrada2 || 0) + 
@@ -229,9 +330,11 @@ export default function TradingJournalV41() {
       const nuevosTrades = [...trades];
       nuevosTrades[editingIndex] = nuevoTrade;
       setTrades(nuevosTrades);
+      await saveTrade(nuevoTrade);
       setEditingIndex(null);
     } else {
       setTrades([...trades, nuevoTrade]);
+      await saveTrade(nuevoTrade);
     }
 
     resetForm();
@@ -278,12 +381,28 @@ export default function TradingJournalV41() {
     setEditingIndex(null);
   };
 
-  const eliminarTrade = (index) => {
+const eliminarTrade = async (index) => {
     const trade = trades[index];
     if (window.confirm(`¿Estás seguro de eliminar el trade de ${trade.ticker} (${trade.fecha})?\n\nEsta acción no se puede deshacer.`)) {
-      const nuevosTrades = [...trades];
-      nuevosTrades.splice(index, 1);
-      setTrades(nuevosTrades);
+      try {
+        // Eliminar de Supabase solo si tiene ID de Supabase
+        if (trade.id && typeof trade.id === 'string' && trade.id.length > 20) {
+          const { error } = await supabase
+            .from('trades')
+            .delete()
+            .eq('id', trade.id);
+
+          if (error) throw error;
+        }
+
+        // Eliminar localmente
+        const nuevosTrades = [...trades];
+        nuevosTrades.splice(index, 1);
+        setTrades(nuevosTrades);
+      } catch (error) {
+        console.error('Error eliminando trade:', error);
+        alert('Error al eliminar trade');
+      }
     }
   };
 
@@ -393,7 +512,7 @@ export default function TradingJournalV41() {
     }
   }
 
-  return (
+return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
