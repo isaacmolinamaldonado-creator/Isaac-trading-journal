@@ -104,6 +104,9 @@ const saveTrade = async (trade) => {
     alert('Error al guardar trade: ' + error.message);
   }
 };
+const [isAuthenticated, setIsAuthenticated] = useState(false);
+const [passwordInput, setPasswordInput] = useState('');
+const MASTER_PASSWORD = 'Emiliano2009.';
   const [showForm, setShowForm] = useState(false);
   const [editingIndex, setEditingIndex] = useState(null);
   const [viewingTrade, setViewingTrade] = useState(null);
@@ -511,7 +514,37 @@ const eliminarTrade = async (index) => {
       confluenciasCumplidasForm += 1;
     }
   }
-
+if (!isAuthenticated) {
+  return (
+    <div style={{ minHeight: '100vh', background: '#0f172a', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '40px', width: '400px' }}>
+        <h1 style={{ textAlign: 'center', marginBottom: '8px' }}>🔐 Trading Journal</h1>
+        <p style={{ textAlign: 'center', color: '#64748b', marginBottom: '32px' }}>Ingresa la contraseña</p>
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          if (passwordInput === MASTER_PASSWORD) {
+            setIsAuthenticated(true);
+          } else {
+            alert('❌ Contraseña incorrecta');
+            setPasswordInput('');
+          }
+        }}>
+          <input
+            type="password"
+            value={passwordInput}
+            onChange={(e) => setPasswordInput(e.target.value)}
+            placeholder="Contraseña"
+            style={{ width: '100%', padding: '14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.1)', color: 'white', fontSize: '16px', marginBottom: '16px' }}
+            autoFocus
+          />
+          <button type="submit" style={{ width: '100%', padding: '14px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white', fontSize: '16px', fontWeight: '700', cursor: 'pointer' }}>
+            Acceder
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
 return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white p-6">
       <div className="max-w-7xl mx-auto">
